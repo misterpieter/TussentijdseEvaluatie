@@ -13,6 +13,7 @@ import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.beust.klaxon.*
+import kotlinx.android.synthetic.main.activity_main.*
 import okhttp3.*
 import org.osmdroid.config.Configuration
 
@@ -33,7 +34,7 @@ class MainActivity : Activity() {
     var searchField: EditText? = null
     var searchButton: Button? = null
     var clearButton: Button? = null
-    val urlSearch = "https://nominatim.openstreetmap.org/search?q="
+    private val urlSearch = "https://nominatim.openstreetmap.org/search?q="
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +53,7 @@ class MainActivity : Activity() {
 
         searchField = findViewById(R.id.search_txtview)
         searchButton = findViewById(R.id.search_button)
-        searchButton!!.setOnClickListener {
+        searchButton?.setOnClickListener {
             val url = URL(urlSearch + URLEncoder.encode(searchField?.text.toString(), "UTF-8") + "&format=json")
             it.hideKeyboard()
             val task = MyAsyncTask()
@@ -60,10 +61,10 @@ class MainActivity : Activity() {
         }
 
         clearButton = findViewById(R.id.clear_button)
-        clearButton!!.setOnClickListener {
-            mMapView!!.overlays.clear()
+        clearButton?.setOnClickListener {
+            mMapView?.overlays.clear()
             // Redraw map
-            mMapView!!.invalidate()
+            mMapView?.invalidate()
         }
 
         if (hasPermissions()) {
@@ -101,7 +102,7 @@ class MainActivity : Activity() {
         mMapView?.setTileSource(TileSourceFactory.MAPNIK)
 
         run {
-            // Create a static ItemizedOverlay showing a some Markers on some cities
+            // create a static ItemizedOverlay showing some markers
             val items = ArrayList<OverlayItem>()
             items.add(OverlayItem("Meistraat", "Campus Meistraat",
                     GeoPoint(51.2162764, 4.41160291036386)))
@@ -109,13 +110,13 @@ class MainActivity : Activity() {
                     GeoPoint(51.2196911, 4.4092625)))
 
             // OnTapListener for the Markers, shows a simple Toast
-            this.mMyLocationOverlay = ItemizedIconOverlay(items,
+            mMyLocationOverlay = ItemizedIconOverlay(items,
                     object : ItemizedIconOverlay.OnItemGestureListener<OverlayItem> {
                         override fun onItemSingleTapUp(index: Int, item: OverlayItem): Boolean {
                             Toast.makeText(
                                     applicationContext, "Item '" + item.title + "' (index=" + index
                                     + ") got single tapped up", Toast.LENGTH_LONG).show()
-                            return true // We 'handled' this event.
+                            return true
                         }
 
                         override fun onItemLongPress(index: Int, item: OverlayItem): Boolean {
@@ -125,14 +126,14 @@ class MainActivity : Activity() {
                             return true
                         }
                     }, applicationContext)
-            this.mMapView?.overlays?.add(this.mMyLocationOverlay)
+            mMapView?.overlays?.add(mMyLocationOverlay)
         }
 
         // MiniMap
-        run {
+        /*run {
             val miniMapOverlay = MinimapOverlay(this, mMapView!!.tileRequestCompleteHandler)
             this.mMapView?.overlays?.add(miniMapOverlay)
-        }
+        }*/
 
         val mapController = mMapView?.controller
         mapController?.setZoom(17.0)
@@ -141,45 +142,33 @@ class MainActivity : Activity() {
     }
 
     fun setCenter(geoPoint: GeoPoint) {
-        val mapController = mMapView?.controller
-        mapController?.setCenter(geoPoint)
+        //items.add(OverlayItem(searchField?.text.toString(), searchField?.text.toString(), geoPoint)
+        mMapView?.controller?.setCenter(geoPoint)
+        mMapView?.overlays?[0]
+        //mMapView?.overlays?.add(mMyLocationOverlay)
+        mMapView?.invalidate()
     }
 
     override fun onPause() {
         super.onPause()
-        mMapView!!.onPause()
+        mMapView?.onPause()
     }
 
     override fun onResume() {
         super.onResume()
-        mMapView!!.onResume()
+        mMapView?.onResume()
     }
 
     // AsyncTask inner class
     inner class MyAsyncTask : AsyncTask<URL, Int, String>() {
 
         override fun doInBackground(vararg params: URL?): String {
-
             val client = OkHttpClient()
             val response: Response
 
             val request = Request.Builder()
                     .url(params[0]!!)
                     .build()
-
-            /*client.newCall(request).enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    Log.e("be.ap.edu.mapsaver", e.toString())
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    response.use {
-                        if (!response.isSuccessful) throw IOException("Unexpected code $response")
-                        result = response.body!!.string()
-                    }
-                }
-            })*/
-
             response = client.newCall(request).execute()
 
             return response.body!!.string()
@@ -203,8 +192,8 @@ class MainActivity : Activity() {
                 // Use low-level API
                 val obj = array[0]
 
-                Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
-                // cannot set mapView center here because of different thread
+                //Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
+                // mapView center must be updated here and not in doInBackground because of UIThread exception
                 setCenter(GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble()))
             }
         }
