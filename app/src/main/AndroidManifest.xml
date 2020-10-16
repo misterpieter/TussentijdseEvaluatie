@@ -3,7 +3,7 @@
     package="be.ap.edu.mapsaver" >
 
     <!-- PROTECTION_NORMAL permissions, automatically granted -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android..permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.INTERNET" />
 

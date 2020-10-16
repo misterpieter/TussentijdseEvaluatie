@@ -13,7 +13,7 @@ import android.widget.*
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.beust.klaxon.*
-import org.json.JSONArray
+import okhttp3.*
 import org.osmdroid.config.Configuration
 
 import org.osmdroid.util.GeoPoint
@@ -23,10 +23,8 @@ import java.util.*
 import org.osmdroid.views.overlay.*
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import java.io.*
-import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-
 
 class MainActivity : Activity() {
 
@@ -57,8 +55,8 @@ class MainActivity : Activity() {
         searchButton!!.setOnClickListener {
             val url = URL(urlSearch + URLEncoder.encode(searchField?.text.toString(), "UTF-8") + "&format=json")
             it.hideKeyboard()
-
-            MyAsyncTask().execute(url)
+            val task = MyAsyncTask()
+            task.execute(url)
         }
 
         clearButton = findViewById(R.id.clear_button)
@@ -73,7 +71,7 @@ class MainActivity : Activity() {
         } else {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE,
                     Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION), 1)
+                    Manifest.permission.ACCESS_COARSE_LOCATION), 100)
         }
     }
 
@@ -90,7 +88,7 @@ class MainActivity : Activity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == 1) {
+        if (requestCode == 100) {
             if (hasPermissions()) {
                 initMap()
             } else {
@@ -100,7 +98,7 @@ class MainActivity : Activity() {
     }
 
     fun initMap() {
-        mMapView!!.setTileSource(TileSourceFactory.MAPNIK)
+        mMapView?.setTileSource(TileSourceFactory.MAPNIK)
 
         run {
             // Create a static ItemizedOverlay showing a some Markers on some cities
@@ -127,24 +125,24 @@ class MainActivity : Activity() {
                             return true
                         }
                     }, applicationContext)
-            this.mMapView!!.overlays.add(this.mMyLocationOverlay)
+            this.mMapView?.overlays?.add(this.mMyLocationOverlay)
         }
 
         // MiniMap
         run {
             val miniMapOverlay = MinimapOverlay(this, mMapView!!.tileRequestCompleteHandler)
-            this.mMapView!!.overlays.add(miniMapOverlay)
+            this.mMapView?.overlays?.add(miniMapOverlay)
         }
 
-        val mapController = mMapView!!.controller
-        mapController.setZoom(17.0)
+        val mapController = mMapView?.controller
+        mapController?.setZoom(17.0)
         // Default = Ellermanstraat 33
-        mapController.setCenter(GeoPoint(51.23020595, 4.41655480828479))
+        setCenter(GeoPoint(51.23020595, 4.41655480828479))
     }
 
-    fun onSupportNavigateUp(): Boolean {
-        onBackPressed()
-        return true
+    fun setCenter(geoPoint: GeoPoint) {
+        val mapController = mMapView?.controller
+        mapController?.setCenter(geoPoint)
     }
 
     override fun onPause() {
@@ -160,27 +158,31 @@ class MainActivity : Activity() {
     // AsyncTask inner class
     inner class MyAsyncTask : AsyncTask<URL, Int, String>() {
 
-        private var result: String = ""
-        private val parser: Parser = Parser.default()
-
-        override fun onPreExecute() {
-            super.onPreExecute()
-        }
-
         override fun doInBackground(vararg params: URL?): String {
 
-            val connect = params[0]?.openConnection() as HttpURLConnection
-            connect.readTimeout = 8000
-            connect.connectTimeout = 8000
-            connect.requestMethod = "GET"
-            connect.connect();
+            val client = OkHttpClient()
+            val response: Response
 
-            val responseCode: Int = connect.responseCode;
-            if (responseCode == 200) {
-                result = streamToString(connect.inputStream)
-            }
+            val request = Request.Builder()
+                    .url(params[0]!!)
+                    .build()
 
-            return result
+            /*client.newCall(request).enqueue(object : Callback {
+                override fun onFailure(call: Call, e: IOException) {
+                    Log.e("be.ap.edu.mapsaver", e.toString())
+                }
+
+                override fun onResponse(call: Call, response: Response) {
+                    response.use {
+                        if (!response.isSuccessful) throw IOException("Unexpected code $response")
+                        result = response.body!!.string()
+                    }
+                }
+            })*/
+
+            response = client.newCall(request).execute()
+
+            return response.body!!.string()
         }
 
         // vararg : variable number of arguments
@@ -192,37 +194,19 @@ class MainActivity : Activity() {
         override fun onPostExecute(result: String?) {
             super.onPostExecute(result)
 
-            // Parse result as Array of JSON objects
             val jsonString = StringBuilder(result!!)
+            //Log.d("be.ap.edu.mapsaver", jsonString.toString())
             val parser: Parser = Parser.default()
             val array = parser.parse(jsonString) as JsonArray<JsonObject>
 
             if (array.size > 0) {
                 // Use low-level API
                 val obj = array[0]
-                val mapController = mMapView!!.controller
-                mapController.setCenter(GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble()))
+
+                Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
+                // cannot set mapView center here because of different thread
+                setCenter(GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble()))
             }
         }
-    }
-
-    fun streamToString(inputStream: InputStream): String {
-
-        val bufferReader = BufferedReader(InputStreamReader(inputStream))
-        var line: String
-        var result = ""
-
-        try {
-            do {
-                line = bufferReader.readLine()
-                if (line != null) {
-                    result += line
-                }
-            } while (line != "")
-            inputStream.close()
-        } catch (ex: Exception) {
-
-        }
-        return result
     }
 }

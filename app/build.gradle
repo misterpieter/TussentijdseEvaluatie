@@ -27,6 +27,7 @@ dependencies {
     implementation 'com.beust:klaxon:5.0.1'
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+    implementation 'com.squareup.okhttp3:okhttp:4.9.0'
 }
 repositories {
     mavenCentral()

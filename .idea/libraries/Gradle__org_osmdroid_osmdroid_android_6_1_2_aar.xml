@@ -1,9 +1,9 @@
 <component name="libraryTable">
   <library name="Gradle: org.osmdroid:osmdroid-android:6.1.2@aar">
     <CLASSES>
-      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/a31d50d6bb55e47dd5341d7e47f41ccb/jetified-osmdroid-android-6.1.2/AndroidManifest.xml" />
-      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/a31d50d6bb55e47dd5341d7e47f41ccb/jetified-osmdroid-android-6.1.2/jars/classes.jar!/" />
-      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/a31d50d6bb55e47dd5341d7e47f41ccb/jetified-osmdroid-android-6.1.2/res" />
+      <root url="jar://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/b03bdd44ef556560f15bf395df90d079/jetified-osmdroid-android-6.1.2/jars/classes.jar!/" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/b03bdd44ef556560f15bf395df90d079/jetified-osmdroid-android-6.1.2/AndroidManifest.xml" />
+      <root url="file://$USER_HOME$/.gradle/caches/transforms-2/files-2.1/b03bdd44ef556560f15bf395df90d079/jetified-osmdroid-android-6.1.2/res" />
     </CLASSES>
     <JAVADOC>
       <root url="jar://$USER_HOME$/.gradle/caches/modules-2/files-2.1/org.osmdroid/osmdroid-android/6.1.2/2eb6378d237cf42595ee93fe30bf62f42517d51c/osmdroid-android-6.1.2-javadoc.jar!/" />
