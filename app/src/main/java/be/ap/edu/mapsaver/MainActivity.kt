@@ -26,12 +26,12 @@ import java.net.URLEncoder
 
 class MainActivity : Activity() {
 
-    var mMapView: MapView? = null
-    var mMyLocationOverlay: ItemizedOverlay<OverlayItem>? = null
-    var items = ArrayList<OverlayItem>()
-    var searchField: EditText? = null
-    var searchButton: Button? = null
-    var clearButton: Button? = null
+    private var mMapView: MapView? = null
+    private var mMyLocationOverlay: ItemizedOverlay<OverlayItem>? = null
+    private var items = ArrayList<OverlayItem>()
+    private var searchField: EditText? = null
+    private var searchButton: Button? = null
+    private var clearButton: Button? = null
     private val urlSearch = "https://nominatim.openstreetmap.org/search?q="
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +47,7 @@ class MainActivity : Activity() {
         osmConfig.osmdroidTileCache = tileCache
 
         setContentView(R.layout.activity_main)
-        mMapView = findViewById(R.id.mapview) as MapView
+        mMapView = findViewById<MapView>(R.id.mapview)
 
         searchField = findViewById(R.id.search_txtview)
         searchButton = findViewById(R.id.search_button)
@@ -67,7 +67,8 @@ class MainActivity : Activity() {
 
         if (hasPermissions()) {
             initMap()
-        } else {
+        }
+        else {
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE,
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION), 100)
@@ -108,10 +109,10 @@ class MainActivity : Activity() {
 
         mMapView?.controller?.setZoom(17.0)
         // default = Ellermanstraat 33
-        setCenter(GeoPoint(51.23020595, 4.41655480828479))
+        setCenter(GeoPoint(51.23020595, 4.41655480828479), "Campus Ellermanstraat")
     }
 
-    fun addMarker(geoPoint: GeoPoint, name: String) {
+    private fun addMarker(geoPoint: GeoPoint, name: String) {
         items.add(OverlayItem(name, name, geoPoint))
         mMyLocationOverlay = ItemizedIconOverlay(items,
                 object : ItemizedIconOverlay.OnItemGestureListener<OverlayItem> {
@@ -130,9 +131,9 @@ class MainActivity : Activity() {
         mMapView?.overlays?.add(mMyLocationOverlay)
     }
 
-    fun setCenter(geoPoint: GeoPoint) {
+    fun setCenter(geoPoint: GeoPoint, name: String) {
         mMapView?.controller?.setCenter(geoPoint)
-        addMarker(geoPoint, searchField?.text.toString())
+        addMarker(geoPoint, name)
     }
 
     override fun onPause() {
@@ -177,7 +178,11 @@ class MainActivity : Activity() {
                 val obj = array[0]
                 //Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
                 // mapView center must be updated here and not in doInBackground because of UIThread exception
-                setCenter(GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble()))
+                val geoPoint = GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble())
+                setCenter(geoPoint, searchField?.text.toString())
+            }
+            else {
+                Toast.makeText(applicationContext, "Address not found", Toast.LENGTH_SHORT).show()
             }
         }
     }
