@@ -9,20 +9,32 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.*
+import android.widget.Button
+import android.widget.EditText
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.beust.klaxon.*
-import okhttp3.*
+import com.beust.klaxon.JsonArray
+import com.beust.klaxon.JsonObject
+import com.beust.klaxon.Parser
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import org.json.JSONObject
 import org.osmdroid.config.Configuration
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.*
-import java.util.*
-import org.osmdroid.views.overlay.*
+import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import java.io.*
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.ItemizedIconOverlay
+import org.osmdroid.views.overlay.ItemizedOverlay
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.OverlayItem
+import java.io.File
 import java.net.URL
 import java.net.URLEncoder
+import java.util.*
+
 
 class MainActivity : Activity() {
 
@@ -32,7 +44,7 @@ class MainActivity : Activity() {
     private var searchField: EditText? = null
     private var searchButton: Button? = null
     private var clearButton: Button? = null
-    private val urlSearch = "https://nominatim.openstreetmap.org/search?q="
+    private val urlNominatim = "https://nominatim.openstreetmap.org/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,7 +64,7 @@ class MainActivity : Activity() {
         searchField = findViewById(R.id.search_txtview)
         searchButton = findViewById(R.id.search_button)
         searchButton?.setOnClickListener {
-            val url = URL(urlSearch + URLEncoder.encode(searchField?.text.toString(), "UTF-8") + "&format=json")
+            val url = URL(urlNominatim + "search?q=" + URLEncoder.encode(searchField?.text.toString(), "UTF-8") + "&format=json")
             it.hideKeyboard()
             val task = MyAsyncTask()
             task.execute(url)
@@ -102,6 +114,21 @@ class MainActivity : Activity() {
         // create a static ItemizedOverlay showing some markers
         addMarker(GeoPoint(51.2162764, 4.41160291036386), "Campus Meistraat")
         addMarker(GeoPoint(51.2196911, 4.4092625), "Campus Lange Nieuwstraat")
+        // add receiver to get location from tap
+        val mReceive: MapEventsReceiver = object : MapEventsReceiver {
+            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
+                //Toast.makeText(baseContext, p.latitude.toString() + " - " + p.longitude, Toast.LENGTH_LONG).show()
+                val url = URL(urlNominatim + "reverse?format=json&lat=" + p.latitude.toString() + "&lon=" + p.longitude.toString())
+                val task = MyAsyncTask()
+                task.execute(url)
+                return false
+            }
+
+            override fun longPressHelper(p: GeoPoint): Boolean {
+                return false
+            }
+        }
+        mMapView?.getOverlays()?.add(MapEventsOverlay(mReceive))
 
          // MiniMap
         //val miniMapOverlay = MinimapOverlay(this, mMapView!!.tileRequestCompleteHandler)
@@ -114,20 +141,7 @@ class MainActivity : Activity() {
 
     private fun addMarker(geoPoint: GeoPoint, name: String) {
         items.add(OverlayItem(name, name, geoPoint))
-        mMyLocationOverlay = ItemizedIconOverlay(items,
-                object : ItemizedIconOverlay.OnItemGestureListener<OverlayItem> {
-                    override fun onItemSingleTapUp(index: Int, item: OverlayItem): Boolean {
-                        Toast.makeText(applicationContext, "Item '" + item.title + "' (index=" + index
-                                + ") got single tapped up", Toast.LENGTH_LONG).show()
-                        return true
-                    }
-
-                    override fun onItemLongPress(index: Int, item: OverlayItem): Boolean {
-                        Toast.makeText(applicationContext, "Item '" + item.title + "' (index=" + index
-                                + ") got long pressed", Toast.LENGTH_LONG).show()
-                        return true
-                    }
-                }, applicationContext)
+        mMyLocationOverlay = ItemizedIconOverlay(items, null, applicationContext)
         mMapView?.overlays?.add(mMyLocationOverlay)
     }
 
@@ -149,7 +163,11 @@ class MainActivity : Activity() {
     // AsyncTask inner class
     inner class MyAsyncTask : AsyncTask<URL, Int, String>() {
 
+        private var search = 0
+
         override fun doInBackground(vararg params: URL?): String {
+
+            search = if (params[0]!!.toString().indexOf("reverse", 0, true) > -1) 1 else 0
             val client = OkHttpClient()
             val response: Response
             val request = Request.Builder()
@@ -170,19 +188,25 @@ class MainActivity : Activity() {
             super.onPostExecute(result)
 
             val jsonString = StringBuilder(result!!)
-            //Log.d("be.ap.edu.mapsaver", jsonString.toString())
+            Log.d("be.ap.edu.mapsaver", jsonString.toString())
             val parser: Parser = Parser.default()
-            val array = parser.parse(jsonString) as JsonArray<JsonObject>
 
-            if (array.size > 0) {
-                val obj = array[0]
-                //Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
-                // mapView center must be updated here and not in doInBackground because of UIThread exception
-                val geoPoint = GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble())
-                setCenter(geoPoint, searchField?.text.toString())
+            if (search == 1) {
+                val obj = parser.parse(jsonString) as JsonObject
+                Toast.makeText(applicationContext, obj.string("display_name")!!, Toast.LENGTH_SHORT).show()
             }
             else {
-                Toast.makeText(applicationContext, "Address not found", Toast.LENGTH_SHORT).show()
+                val array = parser.parse(jsonString) as JsonArray<JsonObject>
+
+                if (array.size > 0) {
+                    val obj = array[0]
+                    //Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
+                    // mapView center must be updated here and not in doInBackground because of UIThread exception
+                    val geoPoint = GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble())
+                    setCenter(geoPoint, searchField?.text.toString())
+                } else {
+                    Toast.makeText(applicationContext, "Address not found", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
