@@ -30,8 +30,10 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/AppTheme" >
+
+        <activity android:name="com.ap.volders.herhaling.RecyclerView.RecyclerViewActivity"/>
         <activity
-            android:name="be.ap.edu.mapsaver.MainActivity"
+            android:name=".MainActivity"
             android:label="@string/app_name" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

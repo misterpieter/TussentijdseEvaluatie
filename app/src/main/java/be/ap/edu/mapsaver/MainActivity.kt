@@ -3,43 +3,82 @@ package be.ap.edu.mapsaver
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.AsyncTask
 import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.inputmethod.InputMethodManager
-import android.widget.*
+import android.widget.Button
+import android.widget.EditText
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.ap.volders.herhaling.RecyclerView.RecyclerViewActivity
+import com.ap.volders.herhaling.RecyclerView.RecyclerViewData
 import com.beust.klaxon.*
 import okhttp3.*
+import org.json.JSONArray
+import org.json.JSONObject
+import org.osmdroid.api.IMapController
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapEventsReceiver
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.*
+import org.osmdroid.views.overlay.ItemizedIconOverlay
+import org.osmdroid.views.overlay.ItemizedOverlay
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.OverlayItem
 import java.io.File
-import java.net.*
+import java.io.IOException
+import java.lang.Exception
+import java.lang.StringBuilder
+import java.net.URL
+import java.net.URLEncoder
 import java.util.*
-
+import java.util.regex.Pattern
+import kotlin.collections.ArrayList
+import kotlin.concurrent.thread
 
 class MainActivity : Activity() {
 
-    private var mMapView: MapView? = null
+
+//    Vertrek van bijgevoegd project en maak een Android app in Kotlin die volgende functionaliteiten bevat :
+//
+//    KLAAR
+//    1/ check bij het opstarten of  volgende dataset :  https://opendata.arcgis.com/datasets/5455b95e8ed1407da444319d54ea97de_256.geojson reeds opgeslagen is in SQLIte.
+//      Indien niet, download ze met een AsyncTask en sla ze op (8 punten)
+//
+//    KLAAR
+//    2/ toon daarna een lijst met alle namen van de scholen in een ListView (8 punten)
+//
+//    3/ op een naam klikken in de ListView toont de locatie op een kaart (4 punten)
+
+
+    private var mapController: IMapController? = null
+
+    private var geoPointName:String? = null
+    private var geoPoint:GeoPoint? = null
     private var mMyLocationOverlay: ItemizedOverlay<OverlayItem>? = null
     private var items = ArrayList<OverlayItem>()
-    private var searchField: EditText? = null
-    private var searchButton: Button? = null
-    private var clearButton: Button? = null
-    private val urlNominatim = "https://nominatim.openstreetmap.org/"
+
+    private var mMapView: MapView? = null
+    private var btnDelete: Button? = null
+    private val client = OkHttpClient()
+    private val TAG = "app"
+    var helper : DatabaseHelper? = null
+    private var jsonString:String = ""
+
+    private var context:Context? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Problem with SQLite db, solution :
-        // https://stackoverflow.com/questions/40100080/osmdroid-maps-not-loading-on-my-device
+        context = this
+        helper = DatabaseHelper(this)
         val osmConfig = Configuration.getInstance()
         osmConfig.userAgentValue = packageName
         val basePath = File(cacheDir.absolutePath, "osmdroid")
@@ -49,22 +88,16 @@ class MainActivity : Activity() {
 
         setContentView(R.layout.activity_main)
         mMapView = findViewById<MapView>(R.id.mapview)
+        btnDelete = findViewById(R.id.btnDeleteDatabase)
+        getAllDatabase()
 
-        searchField = findViewById(R.id.search_txtview)
-        searchButton = findViewById(R.id.search_button)
-        searchButton?.setOnClickListener {
-            val url = URL(urlNominatim + "search?q=" + URLEncoder.encode(searchField?.text.toString(), "UTF-8") + "&format=json")
-            it.hideKeyboard()
-            val task = MyAsyncTask()
-            task.execute(url)
-        }
 
-        clearButton = findViewById(R.id.clear_button)
-        clearButton?.setOnClickListener {
-            mMapView?.overlays?.clear()
-            // Redraw map
-            mMapView?.invalidate()
-        }
+//        btnDelete!!.setOnClickListener {
+////            deleteAllInDatabase()
+////            intent = Intent(this, RecyclerViewActivity::class.java)
+////            intent.putExtra("EXTRA_DATA","mijnen extra data no1")
+////            startActivity(intent)
+//        }
 
         if (hasPermissions()) {
             initMap()
@@ -99,44 +132,8 @@ class MainActivity : Activity() {
     }
 
     fun initMap() {
-        mMapView?.setTileSource(TileSourceFactory.MAPNIK)
-        // create a static ItemizedOverlay showing some markers
-        addMarker(GeoPoint(51.2162764, 4.41160291036386), "Campus Meistraat")
-        addMarker(GeoPoint(51.2196911, 4.4092625), "Campus Lange Nieuwstraat")
-        // add receiver to get location from tap
-        val mReceive: MapEventsReceiver = object : MapEventsReceiver {
-            override fun singleTapConfirmedHelper(p: GeoPoint): Boolean {
-                //Toast.makeText(baseContext, p.latitude.toString() + " - " + p.longitude, Toast.LENGTH_LONG).show()
-                val url = URL(urlNominatim + "reverse?format=json&lat=" + p.latitude.toString() + "&lon=" + p.longitude.toString())
-                val task = MyAsyncTask()
-                task.execute(url)
-                return false
-            }
-
-            override fun longPressHelper(p: GeoPoint): Boolean {
-                return false
-            }
-        }
-        mMapView?.getOverlays()?.add(MapEventsOverlay(mReceive))
-
-         // MiniMap
-        //val miniMapOverlay = MinimapOverlay(this, mMapView!!.tileRequestCompleteHandler)
-        //this.mMapView?.overlays?.add(miniMapOverlay)
-
         mMapView?.controller?.setZoom(17.0)
-        // default = Ellermanstraat 33
-        setCenter(GeoPoint(51.23020595, 4.41655480828479), "Campus Ellermanstraat")
-    }
-
-    private fun addMarker(geoPoint: GeoPoint, name: String) {
-        items.add(OverlayItem(name, name, geoPoint))
-        mMyLocationOverlay = ItemizedIconOverlay(items, null, applicationContext)
-        mMapView?.overlays?.add(mMyLocationOverlay)
-    }
-
-    fun setCenter(geoPoint: GeoPoint, name: String) {
-        mMapView?.controller?.setCenter(geoPoint)
-        addMarker(geoPoint, name)
+        mMapView?.controller?.setCenter(GeoPoint(51.23020595, 4.41655480828479))
     }
 
     override fun onPause() {
@@ -149,54 +146,132 @@ class MainActivity : Activity() {
         mMapView?.onResume()
     }
 
+    private fun addMarker(geoPoint: GeoPoint, name: String) {
+        items.add(OverlayItem(name,"description", geoPoint))
+        mMyLocationOverlay = ItemizedIconOverlay(items,null,applicationContext)
+        mMapView?.overlays?.add(mMyLocationOverlay)
+        mapController?.setZoom(15.0)
+    }
+
+    private fun setCenter(geoPoint: GeoPoint, name: String) {
+        mapController?.setCenter(geoPoint)
+        mapController?.setZoom(15.0)
+    }
+
+
+
+
+    fun getAllDatabase(){
+        var lijstje = helper?.getAll()
+
+        if (lijstje!!.isEmpty()) {
+            Log.d(TAG, "DATABASE IS LEEG!!")
+            val url = URL("https://opendata.arcgis.com/datasets/5455b95e8ed1407da444319d54ea97de_256.geojson")
+            try {
+                val task = MyAsyncTask()
+                task.execute(url)
+//                asyncGet("https://opendata.arcgis.com/datasets/5455b95e8ed1407da444319d54ea97de_256.geojson")
+
+            }catch (e:Exception ){
+                Log.d(TAG, "getAllDatabase: ${e.toString()}")
+            }
+        }
+        else {
+//            Log.d(TAG, "getAllDatabase: LIJSTJE: ${lijstje}")
+            Log.d(TAG, "DATABASE IS GELADEN!")
+        }
+    }
+
+    fun add(file:String){
+        helper?.add(file)
+        getAllDatabase()
+    }
+
+    fun deleteAllInDatabase(){
+        helper?.deleteAll()
+        Toast.makeText(this, "database deleted", Toast.LENGTH_SHORT).show()
+    }
+
+
     // AsyncTask inner class
     inner class MyAsyncTask : AsyncTask<URL, Int, String>() {
+        var response = ""
 
-        private var search = 0
+        override fun onPreExecute(){
+            super.onPreExecute()
+        }
 
         override fun doInBackground(vararg params: URL?): String {
-
-            search = if (params[0]!!.toString().indexOf("reverse", 0, true) > -1) 1 else 0
             val client = OkHttpClient()
-            val response: Response
             val request = Request.Builder()
                     .url(params[0]!!)
                     .build()
-            response = client.newCall(request).execute()
-
-            return response.body!!.string()
+            response = client.newCall(request).execute().body!!.string()
+//            Log.d("get", "doInBackground: ${params[0]}")
+            return response
         }
 
-        // vararg : variable number of arguments
-        // * : spread operator, unpacks an array into the list of values from the array
         override fun onProgressUpdate(vararg values: Int?) {
             super.onProgressUpdate(*values)
         }
 
         override fun onPostExecute(result: String?) {
             super.onPostExecute(result)
-
-            val jsonString = StringBuilder(result!!)
-            Log.d("be.ap.edu.mapsaver", jsonString.toString())
             val parser: Parser = Parser.default()
+            val jsonString = StringBuilder(result!!)
+            val obj: JsonObject = parser.parse(jsonString) as JsonObject
+            val features = obj.get("features") as JsonArray<JsonObject>
+            val prop = features[0].get("properties") as JsonObject
+            val geo = features[0].get("geometry") as JsonObject
+            val coord = geo.get("coordinates") as JsonArray<Double>
 
-            if (search == 1) {
-                val obj = parser.parse(jsonString) as JsonObject
-                Toast.makeText(applicationContext, obj.string("display_name")!!, Toast.LENGTH_SHORT).show()
-            }
-            else {
-                val array = parser.parse(jsonString) as JsonArray<JsonObject>
+            val lat = coord[0].toString()
+            val lon = coord[1].toString()
+            val naam = prop.get("naam")
+//            val geometry = prop.get("geometry") as JsonObject
+            Log.d(TAG, "naam: ${naam.toString()}")
+            Log.d(TAG, "lat: ${lat.toString()}")
+            Log.d(TAG, "lon: ${lon.toString()}")
 
-                if (array.size > 0) {
-                    val obj = array[0]
-                    //Log.d("be.ap.edu.mapsaver", "onResponse" + obj.string("lat")!! + " " + obj.string("lon")!!)
-                    // mapView center must be updated here and not in doInBackground because of UIThread exception
-                    val geoPoint = GeoPoint(obj.string("lat")!!.toDouble(), obj.string("lon")!!.toDouble())
-                    setCenter(geoPoint, searchField?.text.toString())
-                } else {
-                    Toast.makeText(applicationContext, "Address not found", Toast.LENGTH_SHORT).show()
-                }
+            var dataList = ArrayList<String>()
+            val tester = features.get("properties").get("naam")
+            
+            tester.forEach { 
+                dataList.add(it.toString())
             }
+            dataList.forEach {
+                Log.d(TAG, "onPostExecute: ${it.toString()}")
+            }
+            intent = Intent(context, RecyclerViewActivity::class.java)
+            intent.putExtra("EXTRA_DATA",dataList)
+            startActivity(intent)
         }
     }
+
+//
+//
+//
+//    //Asynchronous get
+//    fun asyncGet(url:String){
+//        val request = Request.Builder()
+//                .url(url)
+//                .build()
+//
+//        client.newCall(request).enqueue(object : Callback {
+//            override fun onFailure(call: Call, e: IOException) {
+//                Log.e(TAG, e.toString())
+//            }
+//
+//            override fun onResponse(call: Call, response: Response) {
+//                response.use {
+//                    if (!response.isSuccessful) throw IOException("errorcod: $response")
+//
+//                    jsonString = response.body?.string().toString()
+//
+//                    Log.d(TAG, "JSONSTRING: $jsonString")
+//                    add(jsonString)
+//                }
+//            }
+//        })
+//    }
 }
